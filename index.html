@@ -608,6 +608,8 @@ async function send(){
 
   try{
     const prov=S.providers.find(p=>p.id===conv.provider)||S.providers[0];
+    // If model doesn't exist for this provider, fall back to active selection
+    const modelToUse = conv.model || S.activeModel;
     if(!prov.apiKey&&prov.id!=='ollama'){throw new Error('No API key set for '+prov.name+'. Go to Settings.');}
 
     // Build messages for API
@@ -632,7 +634,7 @@ async function send(){
 
     const res=await fetch(prov.baseUrl+'/chat/completions',{
       method:'POST',headers,
-      body:JSON.stringify({model:conv.model,messages:apiMsgs,stream:true,temperature:S.settings.temp,max_tokens:S.settings.maxTok})
+      body:JSON.stringify({model:modelToUse,messages:apiMsgs,stream:true,temperature:S.settings.temp,max_tokens:S.settings.maxTok})
     });
     if(!res.ok){const e=await res.text();throw new Error('API '+res.status+': '+e.slice(0,200));}
     const reader=res.body.getReader();const dec=new TextDecoder();let full='';
@@ -879,10 +881,21 @@ async function loadModels(provId) {
 
 function selModel(provId, modelId) {
   S.activeProv = provId; S.activeModel = modelId; sv();
-  mbRenderList(); // only re-render list, not pills
+  mbRenderList();
   const c = S.convs.find(x=>x.id===S.activeCID);
-  if (c) { c.provider=provId; c.model=modelId; document.getElementById('mpill').textContent=provId+' - '+modelId; }
-  toast('Selected '+modelId);
+  if (c) {
+    c.provider = provId; c.model = modelId;
+    const pill = document.getElementById('mpill');
+    if (pill) pill.textContent = provId + ' - ' + modelId;
+    // Auto-return to open chat
+    document.querySelectorAll('.sc').forEach(s=>s.classList.remove('on'));
+    document.querySelectorAll('.tb').forEach(b=>b.classList.remove('on'));
+    document.getElementById('sc-chat').classList.add('on');
+    document.getElementById('tb-chats').classList.add('on');
+  } else {
+    showTab('chats');
+  }
+  toast('✓ ' + modelId.split('/').pop());
 }
 
 // ═══════════════════════════════════════════════
