@@ -10,8 +10,8 @@
 <style>
 :root{--bg:#0A0A0F;--bgc:#12121A;--bge:#1A1A26;--bdr:#2A2A3A;--pri:#7C6FFF;--txt:#F0F0FF;--mut:#7070A0;--dim:#4A4A6A;--err:#FF6B6B;--ok:#00C9A7;--sat:env(safe-area-inset-top,44px);--sab:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
-html,body{height:100%;background:#0A0A0F!important;background-color:#0A0A0F!important;color:#F0F0FF;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;overflow:hidden}
-#app{display:flex;flex-direction:column;height:100%;height:-webkit-fill-available}
+html,body{height:100%;background:#0A0A0F;color:#F0F0FF;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100%;height:-webkit-fill-available;background:#0A0A0F}
 /* Tab Bar */
 .tabs{display:flex;background:var(--bgc);border-top:1px solid var(--bdr);padding-bottom:calc(6px + var(--sab));padding-top:6px;flex-shrink:0;z-index:10}
 .tb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:9px;font-weight:600;padding:4px 0;letter-spacing:.3px}
@@ -294,7 +294,6 @@ select.ti{-webkit-appearance:none;cursor:pointer}
     <input id="model-search" class="sinp" type="search" placeholder="Search or type any model ID…"
       oninput="onModelSearch(this.value)" autocorrect="off" autocapitalize="none" spellcheck="false"
       style="width:100%;font-size:14px;padding:9px 13px;border-radius:20px;background:var(--bge);color:#fff;border-color:var(--bdr)">
-  </div>
   </div>
   <!-- Results list -->
   <div class="scrl" id="models-list" onscroll="onModelScroll(this)"></div>
