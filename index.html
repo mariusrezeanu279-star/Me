@@ -129,6 +129,20 @@ select.ti{-webkit-appearance:none;cursor:pointer}
 /* Toast */
 .toast{position:fixed;top:calc(var(--sat) + 56px);left:50%;transform:translateX(-50%) translateY(-16px);background:var(--bge);border:1px solid var(--bdr);color:var(--txt);padding:9px 18px;border-radius:18px;font-size:12px;opacity:0;transition:all .25s;pointer-events:none;z-index:999;white-space:nowrap}
 .toast.on{opacity:1;transform:translateX(-50%)}
+/* Feature pills */
+.fpill{padding:5px 11px;border-radius:14px;border:1px solid var(--bdr);background:var(--bge);color:var(--mut);font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.fpill.on{background:var(--pri);border-color:var(--pri);color:#fff}
+/* Message action buttons */
+.msg-actions{display:flex;gap:8px;padding:2px 14px 6px;justify-content:flex-start}
+.msg.user .msg-actions{justify-content:flex-end}
+.mact{background:none;border:none;color:var(--dim);font-size:11px;cursor:pointer;padding:2px 4px;border-radius:4px}
+.mact:active{color:var(--pri)}
+/* Thinking block */
+.think-block{background:var(--bge);border:1px solid var(--bdr);border-radius:10px;margin:4px 0;font-size:12px;color:var(--mut);overflow:hidden}
+.think-hd{display:flex;align-items:center;gap:6px;padding:7px 10px;cursor:pointer;font-weight:600;font-size:11px;color:var(--mut)}
+.think-hd:active{background:var(--bdr)}
+.think-body{padding:8px 10px;border-top:1px solid var(--bdr);white-space:pre-wrap;display:none;font-size:12px;line-height:1.5}
+.think-body.on{display:block}
 /* Edit overlay */
 .edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:none;flex-direction:column}
 .edit-ov.on{display:flex}
@@ -163,9 +177,18 @@ select.ti{-webkit-appearance:none;cursor:pointer}
   <div class="hd">
     <button class="bbtn" onclick="goBack()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16"><path d="M15 18l-6-6 6-6"/></svg>Chats</button>
     <span id="chat-title" style="font-size:14px;font-weight:600;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0 8px"></span>
+    <button onclick="scrollTop()" style="background:none;border:none;color:var(--mut);font-size:18px;cursor:pointer;padding:0 6px" title="Scroll to top">↑</button>
     <button onclick="delChat()" style="background:none;border:none;color:var(--err);font-size:12px;cursor:pointer;font-weight:500">Delete</button>
   </div>
   <span class="mpill" id="mpill" onclick="showTab('models')">Loading...</span>
+  <!-- Feature pills -->
+  <div id="feat-pills" style="display:flex;gap:6px;padding:4px 14px 6px;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch">
+    <button class="fpill" id="fp-web" onclick="toggleFeat('web')" title="Web Search">🔍 Web</button>
+    <button class="fpill" id="fp-think" onclick="toggleFeat('think')" title="Extended Thinking">🧠 Think</button>
+    <button class="fpill" id="fp-deep" onclick="toggleFeat('deep')" title="Deep Research mode">📚 Deep</button>
+    <button class="fpill" id="fp-code" onclick="toggleFeat('code')" title="Code mode">💻 Code</button>
+    <button class="fpill" id="fp-concise" onclick="toggleFeat('concise')" title="Concise replies">✂️ Concise</button>
+  </div>
   <div class="msgs" id="msgs"></div>
   <div class="ia">
     <div class="att-preview" id="att-preview"></div>
@@ -489,21 +512,108 @@ function delChat(){
 // ═══════════════════════════════════════════════
 // MESSAGES
 // ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+// FEATURES (web/think/deep/code/concise)
+// ═══════════════════════════════════════════════
+const FEATS = {web:false, think:false, deep:false, code:false, concise:false};
+const FEAT_PROMPTS = {
+  web: 'You have access to web search. When asked about current events, recent info, or anything you might not know, state you are searching and provide the most up-to-date answer you can. Cite sources where possible.',
+  think: 'Before answering, think through the problem step by step inside <thinking> tags. Show your full reasoning process.',
+  deep: 'Provide an extremely thorough, in-depth, well-structured research-level answer. Cover all angles, include examples, caveats, and multiple perspectives.',
+  code: 'You are in code mode. Always format code in proper code blocks with the language specified. Provide complete, runnable code. Explain what each part does.',
+  concise: 'Be extremely concise. Give only the essential answer, no padding or unnecessary explanation.'
+};
+function toggleFeat(f){
+  FEATS[f]=!FEATS[f];
+  document.getElementById('fp-'+f).classList.toggle('on', FEATS[f]);
+  toast((FEATS[f]?'✓ ':'✗ ')+f.charAt(0).toUpperCase()+f.slice(1)+' '+(FEATS[f]?'on':'off'));
+}
+function buildFeatPrompt(){
+  return Object.keys(FEATS).filter(f=>FEATS[f]).map(f=>FEAT_PROMPTS[f]).join('\n\n');
+}
+
+// ═══════════════════════════════════════════════
+// MESSAGES
+// ═══════════════════════════════════════════════
 function renderMsgs(conv){
   const el=document.getElementById('msgs');
   if(!conv.messages.length){el.innerHTML='<div style="text-align:center;color:var(--dim);padding:36px;font-size:13px">Send a message to start</div>';return;}
-  el.innerHTML=conv.messages.map(m=>{
+  el.innerHTML=conv.messages.map((m,i)=>{
     let inner='';
+    // Attachments
     if(m.attachments&&m.attachments.length){
       m.attachments.forEach(a=>{
         if(a.type==='image')inner+='<img class="msg-img" src="'+a.data+'" alt="'+esc(a.name)+'">';
         else inner+='<div class="msg-file"><span>📎</span><span>'+esc(a.name)+'</span></div>';
       });
     }
-    inner+='<span>'+esc(m.content||'')+'</span>';
-    return '<div class="msg '+m.role+'"><div class="bbl">'+inner+'</div></div>';
+    // Check for <thinking> block in assistant messages
+    let content = m.content||'';
+    let thinkHtml = '';
+    if(m.role==='assistant'){
+      const tm = content.match(/<thinking>([\s\S]*?)<\/thinking>/i);
+      if(tm){
+        const tid='th-'+i;
+        thinkHtml='<div class="think-block"><div class="think-hd" onclick="toggleThink(\''+tid+'\')">🧠 <span>Thinking</span> <span style="margin-left:auto;font-size:10px" id="'+tid+'-arr">▼</span></div><div class="think-body" id="'+tid+'">'+esc(tm[1].trim())+'</div></div>';
+        content=content.replace(/<thinking>[\s\S]*?<\/thinking>/i,'').trim();
+      }
+    }
+    inner+=thinkHtml+'<span>'+esc(content)+'</span>';
+    // Action buttons
+    let actions='<div class="msg-actions">';
+    if(m.role==='assistant'){
+      actions+='<button class="mact" onclick="copyMsg('+i+')" title="Copy">📋 Copy</button>';
+      actions+='<button class="mact" onclick="regenMsg('+i+')" title="Regenerate">🔄 Retry</button>';
+    }
+    if(m.role==='user'){
+      actions+='<button class="mact" onclick="editMsg('+i+')" title="Edit">✏️ Edit</button>';
+      actions+='<button class="mact" onclick="copyMsg('+i+')" title="Copy">📋</button>';
+    }
+    actions+='</div>';
+    return '<div class="msg '+m.role+'"><div class="bbl">'+inner+'</div></div>'+actions;
   }).join('');
 }
+
+function toggleThink(id){
+  const body=document.getElementById(id);
+  const arr=document.getElementById(id+'-arr');
+  if(!body)return;
+  body.classList.toggle('on');
+  if(arr)arr.textContent=body.classList.contains('on')?'▲':'▼';
+}
+
+function copyMsg(i){
+  const conv=S.convs.find(c=>c.id===S.activeCID);if(!conv)return;
+  const m=conv.messages[i];if(!m)return;
+  navigator.clipboard.writeText(m.content||'').then(()=>toast('Copied!')).catch(()=>{
+    // fallback
+    const ta=document.createElement('textarea');ta.value=m.content||'';
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');
+    document.body.removeChild(ta);toast('Copied!');
+  });
+}
+
+function editMsg(i){
+  const conv=S.convs.find(c=>c.id===S.activeCID);if(!conv)return;
+  const m=conv.messages[i];if(!m||m.role!=='user')return;
+  const input=document.getElementById('cinput');
+  input.value=m.content||'';
+  autoRsz(input);input.focus();
+  // Remove this message and all after it
+  conv.messages=conv.messages.slice(0,i);
+  renderMsgs(conv);sv();
+  toast('Editing — press send to resend');
+}
+
+async function regenMsg(i){
+  const conv=S.convs.find(c=>c.id===S.activeCID);if(!conv)return;
+  // Remove the assistant message at i and resend
+  conv.messages=conv.messages.slice(0,i);
+  renderMsgs(conv);sv();
+  await send(true);
+}
+
+function scrollTop(){const el=document.getElementById('msgs');el.scrollTo({top:0,behavior:'smooth'})}
 function scrollBot(){const el=document.getElementById('msgs');el.scrollTop=el.scrollHeight}
 function autoRsz(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,110)+'px'}
 function hkey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}
@@ -585,19 +695,23 @@ function editAction(action,i){
 // ═══════════════════════════════════════════════
 // SEND MESSAGE
 // ═══════════════════════════════════════════════
-async function send(){
+async function send(isRegen){
   const input=document.getElementById('cinput');
   const text=input.value.trim();
   const atts=[...S.attachments];
-  if(!text&&!atts.length)return;
   const conv=S.convs.find(c=>c.id===S.activeCID);if(!conv)return;
-  input.value='';input.style.height='auto';
-  S.attachments=[];renderAttPrev();
+  if(!isRegen){
+    if(!text&&!atts.length)return;
+    input.value='';input.style.height='auto';
+    S.attachments=[];renderAttPrev();
+  }
   document.getElementById('sbtn').disabled=true;
 
-  const userMsg={role:'user',content:text,attachments:atts};
-  conv.messages.push(userMsg);
-  if(conv.messages.length===1&&text)conv.title=text.slice(0,42);
+  if(!isRegen){
+    const userMsg={role:'user',content:text,attachments:atts};
+    conv.messages.push(userMsg);
+    if(conv.messages.length===1&&text)conv.title=text.slice(0,42);
+  }
   renderMsgs(conv);scrollBot();
 
   const asstMsg={role:'assistant',content:''};
@@ -608,13 +722,15 @@ async function send(){
 
   try{
     const prov=S.providers.find(p=>p.id===conv.provider)||S.providers[0];
-    // If model doesn't exist for this provider, fall back to active selection
-    const modelToUse = conv.model || S.activeModel;
+    const modelToUse=conv.model||S.activeModel;
     if(!prov.apiKey&&prov.id!=='ollama'){throw new Error('No API key set for '+prov.name+'. Go to Settings.');}
 
-    // Build messages for API
     const apiMsgs=[];
-    if(S.settings.sysprompt)apiMsgs.push({role:'system',content:S.settings.sysprompt});
+    // System prompt + active feature prompts
+    const featPrompt=buildFeatPrompt();
+    const sysContent=[S.settings.sysprompt,featPrompt].filter(Boolean).join('\n\n');
+    if(sysContent)apiMsgs.push({role:'system',content:sysContent});
+
     conv.messages.slice(0,-1).forEach(m=>{
       const parts=[];
       if(m.attachments&&m.attachments.length){
@@ -627,7 +743,6 @@ async function send(){
       apiMsgs.push({role:m.role,content:parts.length===1&&parts[0].type==='text'?parts[0].text:parts});
     });
 
-    // Handle Anthropic differently (different auth header)
     const headers={'Content-Type':'application/json'};
     if(prov.id==='anthropic'){headers['x-api-key']=prov.apiKey;headers['anthropic-version']='2023-06-01';}
     else headers['Authorization']='Bearer '+prov.apiKey;
@@ -645,7 +760,7 @@ async function send(){
         if(!line.startsWith('data: '))continue;
         const d=line.slice(6);if(d==='[DONE]')continue;
         try{const j=JSON.parse(d);const delta=j.choices?.[0]?.delta?.content||'';full+=delta;
-          asstMsg.content=full;if(streamBbl){streamBbl.innerHTML=esc(full);scrollBot();}
+          asstMsg.content=full;if(streamBbl){streamBbl.innerHTML=renderContent(full);scrollBot();}
         }catch(e){}
       }
     }
@@ -658,6 +773,11 @@ async function send(){
   }
   renderMsgs(conv);scrollBot();
   document.getElementById('sbtn').disabled=false;sv();
+}
+
+function renderContent(text){
+  // Strip thinking tags from live bubble (they show in collapsed block after render)
+  return esc(text.replace(/<thinking>[\s\S]*?<\/thinking>/gi,'').trim());
 }
 
 // ═══════════════════════════════════════════════
