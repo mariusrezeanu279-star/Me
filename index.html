@@ -10,7 +10,7 @@
 <style>
 :root{--bg:#0A0A0F;--bgc:#12121A;--bge:#1A1A26;--bdr:#2A2A3A;--pri:#7C6FFF;--txt:#F0F0FF;--mut:#7070A0;--dim:#4A4A6A;--err:#FF6B6B;--ok:#00C9A7;--sat:env(safe-area-inset-top,44px);--sab:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
-html,body{height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;overflow:hidden}
+html,body{height:100%;background:#0A0A0F!important;background-color:#0A0A0F!important;color:#F0F0FF;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;overflow:hidden}
 #app{display:flex;flex-direction:column;height:100%;height:-webkit-fill-available}
 /* Tab Bar */
 .tabs{display:flex;background:var(--bgc);border-top:1px solid var(--bdr);padding-bottom:calc(6px + var(--sab));padding-top:6px;flex-shrink:0;z-index:10}
@@ -98,22 +98,21 @@ select.ti{-webkit-appearance:none;cursor:pointer}
 .vid-out{padding:14px}
 .vid-out video{width:100%;border-radius:12px;border:1px solid var(--bdr)}
 /* Model browser */
-.ps{border-bottom:1px solid var(--bdr)}
-.ph{display:flex;align-items:center;padding:13px 14px;gap:9px;cursor:pointer}
 .pdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
-.pnm{font-size:14px;font-weight:600;flex:1}
-.pcnt{font-size:11px;color:var(--mut)}
-.ml{display:none}
-.ml.on{display:block}
-.mi{display:flex;align-items:center;padding:9px 14px 9px 32px;cursor:pointer;gap:9px}
+.mi{display:flex;align-items:center;padding:11px 14px;cursor:pointer;gap:9px;border-bottom:1px solid var(--bdr);background:var(--bg)}
 .mi:active{background:var(--bge)}
-.mname{flex:1;font-size:12px;color:var(--mut)}
-.mi.sel .mname{color:var(--pri);font-weight:600}
+.mname{flex:1;font-size:13px;color:#FFFFFF;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mi.sel .mname{color:var(--pri);font-weight:700}
 .ck{width:17px;height:17px;border-radius:9px;background:var(--pri);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.lmbtn{background:none;border:1px solid var(--bdr);color:var(--pri);border-radius:7px;padding:5px 10px;font-size:11px;cursor:pointer;margin:6px 14px 6px 32px}
-.mtag{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600}
+.mtag{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:600;flex-shrink:0}
 .mtag.anon{background:#7C6FFF22;color:var(--pri)}
 .mtag.unc{background:#FF6B6B22;color:var(--err)}
+.ppill{padding:5px 12px;border-radius:14px;border:1px solid var(--bdr);background:var(--bge);color:#FFFFFF;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.ppill.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.load-more{text-align:center;padding:14px;color:var(--pri);font-size:13px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--bg)}
+.lmbtn{background:none;border:1px solid var(--pri);color:var(--pri);border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer}
+.m-custom{display:flex;align-items:center;padding:11px 14px;border-bottom:1px solid var(--bdr);gap:9px;background:var(--bge);cursor:pointer}
+.m-custom-label{font-size:13px;color:#FFFFFF;flex:1}
 /* Settings */
 .sr{display:flex;align-items:center;padding:13px 14px;border-bottom:1px solid var(--bdr);gap:11px}
 .si{flex:1}
@@ -288,7 +287,17 @@ select.ti{-webkit-appearance:none;cursor:pointer}
 <!-- MODELS SCREEN -->
 <div id="sc-models" class="sc">
   <div class="hd"><h1>Models</h1></div>
-  <div class="scrl" id="models-list"></div>
+  <!-- Provider selector pills -->
+  <div style="display:flex;gap:6px;padding:10px 14px 4px;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;background:var(--bgc)" id="prov-pills"></div>
+  <!-- Search box -->
+  <div style="padding:6px 14px 8px;flex-shrink:0;background:var(--bgc)">
+    <input id="model-search" class="sinp" type="search" placeholder="Search or type any model ID…"
+      oninput="onModelSearch(this.value)" autocorrect="off" autocapitalize="none" spellcheck="false"
+      style="width:100%;font-size:14px;padding:9px 13px;border-radius:20px;background:var(--bge);color:#fff;border-color:var(--bdr)">
+  </div>
+  </div>
+  <!-- Results list -->
+  <div class="scrl" id="models-list" onscroll="onModelScroll(this)"></div>
 </div>
 
 <!-- SETTINGS SCREEN -->
@@ -757,55 +766,123 @@ async function pollVid(jobId,key){
 }
 
 // ═══════════════════════════════════════════════
-// MODELS BROWSER
+// MODELS BROWSER — smart search + paginated
 // ═══════════════════════════════════════════════
-function renderModels(){
-  const el=document.getElementById('models-list');
-  let html='';
-  S.providers.filter(p=>p.enabled||p.id==='venice').forEach(prov=>{
-    const models=S.modelCache[prov.id]||[];
-    const builtIn=prov.id==='venice'?VENICE_TEXT_MODELS:[];
-    const all=[...builtIn,...models.filter(m=>!builtIn.find(b=>b.id===m.id))];
-    html+='<div class="ps"><div class="ph" onclick="toggleProv(\''+prov.id+'\')">'
-      +'<div class="pdot" style="background:'+prov.color+'"></div>'
-      +'<div class="pnm">'+esc(prov.name)+'</div>'
-      +'<div class="pcnt">'+(all.length?all.length+' models':'')+'</div></div>'
-      +'<div class="ml" id="ml-'+prov.id+'">'
-      +'<button class="lmbtn" onclick="loadModels(\''+prov.id+'\')">Load from API</button>'
-      +all.map(m=>'<div class="mi'+(S.activeModel===m.id&&S.activeProv===prov.id?' sel':'')+'" onclick="selModel(\''+prov.id+'\',\''+m.id+'\')">'
-        +'<div class="mname">'+esc(m.name||m.id)+'</div>'
-        +(m.tag==='unc'?'<span class="mtag unc">UNC</span>':'')
-        +(m.tag==='anon'?'<span class="mtag anon">ANON</span>':'')
-        +(S.activeModel===m.id&&S.activeProv===prov.id?'<div class="ck"><svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M20 6L9 17l-5-5"/></svg></div>':'')
-      +'</div>').join('')
-      +'</div></div>';
-  });
-  el.innerHTML=html;
+let MB = { provId: 'venice', query: '', page: 0, PAGE: 20, filtered: [] };
+
+function _mbAllModels(provId) {
+  const prov = S.providers.find(p=>p.id===provId);
+  if (!prov) return [];
+  const cached = S.modelCache[provId] || [];
+  const builtIn = provId==='venice' ? VENICE_TEXT_MODELS : [];
+  return [...builtIn, ...cached.filter(m=>!builtIn.find(b=>b.id===m.id))];
 }
 
-function toggleProv(id){document.getElementById('ml-'+id)?.classList.toggle('on')}
+function renderModels() {
+  // Provider pills
+  const pills = document.getElementById('prov-pills');
+  if (pills) {
+    const provs = S.providers.filter(p=>p.enabled||p.id==='venice');
+    pills.innerHTML = provs.map(p=>{
+      const cnt = _mbAllModels(p.id).length;
+      return '<button class="ppill'+(MB.provId===p.id?' on':'')+'" onclick="mbSetProv(\''+p.id+'\')">'
+        +'<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:'+p.color+';margin-right:5px;vertical-align:middle"></span>'
+        +esc(p.name)+(cnt?' ('+cnt+')':'')+'</button>';
+    }).join('');
+  }
+  mbRenderList();
+}
 
-async function loadModels(provId){
-  const prov=S.providers.find(p=>p.id===provId);if(!prov)return;
-  const btn=event.target;btn.textContent='Loading...';btn.disabled=true;
-  try{
-    const headers={'Authorization':'Bearer '+prov.apiKey};
-    if(provId==='anthropic'){headers['x-api-key']=prov.apiKey;headers['anthropic-version']='2023-06-01';}
-    const res=await fetch(prov.baseUrl+'/models',{headers});
-    const data=await res.json();
-    const models=(data.data||data.models||[]).map(m=>({id:m.id||m.name,name:m.id||m.name}));
-    if(!S.modelCache)S.modelCache={};
-    S.modelCache[provId]=models;sv();renderModels();
-    document.getElementById('ml-'+provId)?.classList.add('on');
+function mbSetProv(id) {
+  MB.provId = id; MB.query = ''; MB.page = 0;
+  const inp = document.getElementById('model-search');
+  if (inp) inp.value = '';
+  renderModels();
+}
+
+function onModelSearch(val) {
+  MB.query = val.trim().toLowerCase();
+  MB.page = 0;
+  mbRenderList();
+}
+
+function mbRenderList() {
+  const el = document.getElementById('models-list');
+  if (!el) return;
+  const all = _mbAllModels(MB.provId);
+  const q = MB.query;
+  MB.filtered = q ? all.filter(m=>(m.name||m.id).toLowerCase().includes(q)||(m.id).toLowerCase().includes(q)) : all;
+  const slice = MB.filtered.slice(0, (MB.page+1)*MB.PAGE);
+  const prov = S.providers.find(p=>p.id===MB.provId) || {};
+
+  let html = '';
+
+  // "Use as custom ID" row when query doesn't match exactly
+  if (q && !all.find(m=>m.id===q)) {
+    html += '<div class="m-custom" onclick="selModel(\''+esc(MB.provId)+'\',\''+esc(q)+'\')">'
+      + '<div class="pdot" style="background:'+esc(prov.color||'#7070A0')+'"></div>'
+      + '<div class="m-custom-label">Use "<strong style="color:var(--txt)">'+esc(q)+'</strong>" directly</div>'
+      + '<span class="mtag anon">CUSTOM</span></div>';
+  }
+
+  // Load from API button if no cached models yet and not venice
+  if (!q && MB.provId !== 'venice' && !(S.modelCache[MB.provId]||[]).length) {
+    html += '<div style="padding:12px 14px;border-bottom:1px solid var(--bdr)">'
+      + '<button class="lmbtn" style="margin:0" onclick="loadModels(\''+esc(MB.provId)+'\')">Load models from API</button></div>';
+  }
+
+  if (!MB.filtered.length && !q) {
+    html += '<div class="lmsg">No models — tap "Load models from API" above</div>';
+  } else if (!MB.filtered.length) {
+    html += '<div class="lmsg">No matches for "'+esc(q)+'"</div>';
+  }
+
+  html += slice.map(m=>{
+    const isSel = S.activeModel===m.id && S.activeProv===MB.provId;
+    return '<div class="mi'+(isSel?' sel':'')+'" onclick="selModel(\''+esc(MB.provId)+'\',\''+esc(m.id)+'\')">'
+      +'<div class="pdot" style="background:'+esc(prov.color||'#7070A0')+'"></div>'
+      +'<div class="mname">'+esc(m.name||m.id)+'</div>'
+      +(m.tag==='unc'?'<span class="mtag unc">UNC</span>':'')
+      +(m.tag==='anon'?'<span class="mtag anon">ANON</span>':'')
+      +(isSel?'<div class="ck"><svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M20 6L9 17l-5-5"/></svg></div>':'')
+      +'</div>';
+  }).join('');
+
+  if (slice.length < MB.filtered.length) {
+    const rem = MB.filtered.length - slice.length;
+    html += '<div class="load-more" onclick="mbLoadMore()">Show '+(rem>MB.PAGE?MB.PAGE:rem)+' more of '+rem+' remaining…</div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function mbLoadMore() { MB.page++; mbRenderList(); }
+
+function onModelScroll(el) {
+  // auto-load-more when near bottom
+  if (el.scrollTop + el.clientHeight > el.scrollHeight - 80) mbLoadMore();
+}
+
+async function loadModels(provId) {
+  const prov = S.providers.find(p=>p.id===provId); if(!prov) return;
+  toast('Loading models…');
+  try {
+    const headers = {'Authorization':'Bearer '+prov.apiKey};
+    if (provId==='anthropic') { headers['x-api-key']=prov.apiKey; headers['anthropic-version']='2023-06-01'; }
+    const res = await fetch(prov.baseUrl+'/models', {headers});
+    const data = await res.json();
+    const models = (data.data||data.models||[]).map(m=>({id:m.id||m.name, name:m.id||m.name}));
+    if (!S.modelCache) S.modelCache = {};
+    S.modelCache[provId] = models; sv(); renderModels();
     toast('Loaded '+models.length+' models');
-  }catch(e){toast('Failed: '+e.message.slice(0,50));btn.textContent='Load from API';btn.disabled=false;}
+  } catch(e) { toast('Failed: '+e.message.slice(0,50)); }
 }
 
-function selModel(provId,modelId){
-  S.activeProv=provId;S.activeModel=modelId;sv();renderModels();
-  // Update active conv if open
-  const c=S.convs.find(x=>x.id===S.activeCID);
-  if(c){c.provider=provId;c.model=modelId;document.getElementById('mpill').textContent=provId+' - '+modelId;}
+function selModel(provId, modelId) {
+  S.activeProv = provId; S.activeModel = modelId; sv();
+  mbRenderList(); // only re-render list, not pills
+  const c = S.convs.find(x=>x.id===S.activeCID);
+  if (c) { c.provider=provId; c.model=modelId; document.getElementById('mpill').textContent=provId+' - '+modelId; }
   toast('Selected '+modelId);
 }
 
